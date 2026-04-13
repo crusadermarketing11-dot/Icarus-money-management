@@ -638,7 +638,7 @@
       pinEntry += n;
       document.getElementById('d' + (pinEntry.length-1)).classList.add('filled');
       if (pinEntry.length === 4) {
-        if (pinEntry === (localStorage.getItem('bt_pin') || '1234')) unlockApp();
+        if (pinEntry === (localStorage.getItem('bt_pin') || '1103')) unlockApp();
         else {
           document.getElementById('pin-dots').classList.add('shake');
           setTimeout(pinReset, 500);
@@ -694,7 +694,7 @@
   function closeDetailOnBg(e) { if(e.target.id === 'detail-overlay') document.getElementById('detail-overlay').classList.remove('open'); }
 
   // Init
-  if (!localStorage.getItem('bt_pin')) localStorage.setItem('bt_pin', '1234'); // Default PIN
+  if (!localStorage.getItem('bt_pin')) localStorage.setItem('bt_pin', '1103'); // Default PIN
   
   // Handle desktop view
   window.addEventListener('resize', () => {
