@@ -1,0 +1,708 @@
+--- START OF FILE Paste April 13, 2026 - 12:48PM ---
+
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Icarus's Budget Tracker</title>
+  <meta name="theme-color" content="#0f0e0c" />
+  <meta name="description" content="Icarus's Personal Budget Tracker PWA" />
+  <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Icarus's Budget Tracker&quot;,&quot;short_name&quot;:&quot;Icarus&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230f0e0c&quot;,&quot;theme_color&quot;:&quot;%230f0e0c&quot;}" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- Chart.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style type="text/tailwindcss">
+    @theme {
+      --color-earth-50: #fdf8f0;
+      --color-earth-100: #f5e6cc;
+      --color-earth-200: #e8c99a;
+      --color-earth-300: #d4a96a;
+      --color-earth-400: #c4874a;
+      --color-earth-500: #a86b32;
+      --color-earth-600: #8a5228;
+      --color-earth-700: #6b3d1e;
+      --color-earth-800: #4d2b14;
+      --color-earth-900: #2e190b;
+      --color-surface-950: #0f0e0c;
+      --color-surface-900: #161410;
+      --color-surface-800: #1e1b16;
+      --color-surface-700: #272318;
+      --color-surface-600: #33301f;
+    }
+  </style>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background: #0f0e0c;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #f5e6cc;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #161410; }
+    ::-webkit-scrollbar-thumb { background: #6b3d1e; border-radius: 4px; }
+
+    /* Glassmorphism */
+    .glass {
+      background: rgba(30, 27, 22, 0.72);
+      backdrop-filter: blur(18px) saturate(1.4);
+      -webkit-backdrop-filter: blur(18px) saturate(1.4);
+      border: 1px solid rgba(212, 169, 106, 0.13);
+    }
+    .glass-strong {
+      background: rgba(22, 20, 16, 0.88);
+      backdrop-filter: blur(28px) saturate(1.6);
+      -webkit-backdrop-filter: blur(28px) saturate(1.6);
+      border: 1px solid rgba(212, 169, 106, 0.2);
+    }
+    .glass-card {
+      background: rgba(39, 35, 24, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(212, 169, 106, 0.1);
+      border-radius: 16px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .glass-card:hover { border-color: rgba(212, 169, 106, 0.25); transform: translateY(-1px); }
+
+    .mesh-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 50% at 15% 20%, rgba(168, 107, 50, 0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 60% at 85% 80%, rgba(107, 61, 30, 0.1) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(30, 27, 22, 0.4) 0%, transparent 70%);
+    }
+
+    /* PIN Keypad */
+    .pin-key {
+      background: rgba(39, 35, 24, 0.7);
+      border: 1px solid rgba(212, 169, 106, 0.18);
+      border-radius: 14px;
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #f5e6cc;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, border-color 0.15s;
+      display: flex; align-items: center; justify-content: center;
+      height: 68px;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .pin-key:hover { background: rgba(168, 107, 50, 0.25); border-color: rgba(212, 169, 106, 0.4); }
+    .pin-key:active { transform: scale(0.94); background: rgba(168, 107, 50, 0.4); }
+    .pin-dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: rgba(212, 169, 106, 0.25);
+      border: 2px solid rgba(212, 169, 106, 0.5);
+      transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    }
+    .pin-dot.filled { background: #c4874a; border-color: #d4a96a; transform: scale(1.15); }
+    .pin-dot.error { background: #e05252; border-color: #f08080; }
+
+    /* Modal & Bottom Sheet */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 60;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    @media (min-width: 768px) {
+      .modal-overlay { align-items: center; }
+    }
+    .modal-sheet {
+      width: 100%; max-width: 560px;
+      border-radius: 24px 24px 0 0;
+      transform: translateY(100%);
+      transition: transform 0.38s cubic-bezier(0.34, 1.2, 0.64, 1);
+      padding: 28px 24px 36px;
+      max-height: 92dvh;
+      overflow-y: auto;
+    }
+    @media (min-width: 768px) {
+      .modal-sheet { border-radius: 20px; transform: translateY(30px) scale(0.96); max-height: 85vh; }
+    }
+    .modal-overlay.open .modal-sheet { transform: translateY(0) scale(1); }
+
+    /* Inputs */
+    .field {
+      background: rgba(15, 14, 12, 0.6);
+      border: 1px solid rgba(212, 169, 106, 0.2);
+      border-radius: 12px;
+      color: #f5e6cc;
+      padding: 12px 16px;
+      width: 100%;
+      font-size: 0.95rem;
+      transition: border-color 0.2s, background 0.2s;
+      outline: none;
+    }
+    .field:focus { border-color: #c4874a; background: rgba(15, 14, 12, 0.8); }
+    .field::placeholder { color: rgba(212, 169, 106, 0.35); }
+
+    /* Toggle Type */
+    .type-btn {
+      flex: 1; padding: 10px; border-radius: 10px; font-weight: 600; font-size: 0.9rem;
+      cursor: pointer; transition: all 0.2s; border: 1.5px solid transparent;
+      color: rgba(245, 230, 204, 0.5); background: rgba(15, 14, 12, 0.4);
+    }
+    .type-btn.active-credit { background: rgba(52, 168, 83, 0.2); border-color: #34a853; color: #6fcf97; }
+    .type-btn.active-expense { background: rgba(234, 67, 53, 0.2); border-color: #ea4335; color: #f08080; }
+
+    /* Summary cards */
+    .balance-main { font-size: clamp(2rem, 5vw, 2.5rem); font-weight: 800; line-height: 1.2; }
+    .stat-val { font-size: clamp(1.1rem, 2.5vw, 1.4rem); font-weight: 700; }
+
+    /* Transaction item */
+    .txn-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px; border-radius: 14px;
+      background: rgba(39, 35, 24, 0.4);
+      border: 1px solid rgba(212, 169, 106, 0.08);
+      transition: background 0.2s, border-color 0.2s;
+      cursor: pointer;
+    }
+    .txn-item:hover { background: rgba(39, 35, 24, 0.7); border-color: rgba(212, 169, 106, 0.18); }
+    .txn-icon {
+      width: 42px; height: 42px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+
+    /* Loader */
+    .spinner {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 3px solid rgba(212, 169, 106, 0.15);
+      border-top-color: #c4874a;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* FAB */
+    .fab {
+      position: fixed; bottom: 28px; right: 24px; z-index: 50;
+      width: 58px; height: 58px; border-radius: 18px;
+      background: linear-gradient(135deg, #c4874a, #8a5228);
+      box-shadow: 0 8px 32px rgba(196, 135, 74, 0.4);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 1.6rem; color: #fff;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: none; outline: none;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px);
+      z-index: 999; border-radius: 12px; padding: 12px 22px;
+      font-size: 0.9rem; font-weight: 500; white-space: nowrap;
+      opacity: 0; transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Chart Container Height */
+    .chart-container { position: relative; height: 220px; width: 100%; margin-top: 10px;}
+
+    .chip {
+      padding: 5px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 500;
+      cursor: pointer; border: 1px solid rgba(212, 169, 106, 0.2);
+      background: rgba(39, 35, 24, 0.4); color: rgba(245, 230, 204, 0.6);
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .chip.active { background: rgba(196, 135, 74, 0.25); border-color: #c4874a; color: #d4a96a; }
+
+    .prog-bar { height: 4px; border-radius: 4px; background: rgba(212, 169, 106, 0.12); overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
+
+    .detail-overlay {
+      position: fixed; inset: 0; z-index: 70;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+    }
+    .detail-overlay.open { opacity: 1; pointer-events: all; }
+    .detail-sheet {
+      width: 100%; max-width: 480px;
+      border-radius: 20px 20px 0 0;
+      transform: translateY(100%);
+      transition: transform 0.32s cubic-bezier(0.34, 1.1, 0.64, 1);
+      padding: 24px 20px 36px;
+    }
+    .detail-overlay.open .detail-sheet { transform: translateY(0) scale(1); }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-5px); }
+      80% { transform: translateX(5px); }
+    }
+    .shake { animation: shake 0.45s ease; }
+  </style>
+</head>
+<body>
+
+<div class="mesh-bg"></div>
+
+<!-- ═══════════════════════════ PIN LOCK ═══════════════════════════ -->
+<div id="pin-overlay" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:#0f0e0c;">
+  <div class="glass-strong" style="width:100%;max-width:360px;border-radius:28px;padding:36px 28px 40px;margin:16px;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-size:2.2rem;margin-bottom:10px;">💰</div>
+      <h1 style="font-size:1.5rem;font-weight:800;color:#f5e6cc;margin-bottom:4px;">Icarus's Budget Tracker</h1>
+      <p id="pin-subtitle" style="font-size:0.85rem;color:rgba(212,169,106,0.65);">Enter your 4-digit PIN to continue</p>
+    </div>
+    <div id="pin-dots" style="display:flex;justify-content:center;gap:14px;margin-bottom:32px;">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div id="keypad" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+      <button class="pin-key" onclick="pinPress('1')">1</button>
+      <button class="pin-key" onclick="pinPress('2')">2</button>
+      <button class="pin-key" onclick="pinPress('3')">3</button>
+      <button class="pin-key" onclick="pinPress('4')">4</button>
+      <button class="pin-key" onclick="pinPress('5')">5</button>
+      <button class="pin-key" onclick="pinPress('6')">6</button>
+      <button class="pin-key" onclick="pinPress('7')">7</button>
+      <button class="pin-key" onclick="pinPress('8')">8</button>
+      <button class="pin-key" onclick="pinPress('9')">9</button>
+      <button class="pin-key" onclick="pinReset()" style="font-size:0.85rem;color:rgba(212,169,106,0.5);">CLR</button>
+      <button class="pin-key" onclick="pinPress('0')">0</button>
+      <button class="pin-key" onclick="pinBackspace()" style="font-size:1rem;">⌫</button>
+    </div>
+    <p id="pin-hint" style="text-align:center;margin-top:20px;font-size:0.75rem;color:rgba(212,169,106,0.35);"></p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ MAIN APP ═══════════════════════════ -->
+<div id="app" style="display:none;position:relative;z-index:1;min-height:100dvh;">
+
+  <!-- Header -->
+  <header class="glass-strong" style="position:sticky;top:0;z-index:40;padding:14px 20px 14px;">
+    <div style="max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:1.4rem;">💰</span>
+        <span style="font-weight:800;font-size:1.1rem;color:#f5e6cc;">Budget<span style="color:#c4874a;">Tracker</span></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button onclick="openModal()" style="background:linear-gradient(135deg,#c4874a,#8a5228);border:none;border-radius:10px;color:#fff;padding:8px 16px;font-weight:600;font-size:0.85rem;cursor:pointer;display:none;" id="desk-add-btn">+ Add Transaction</button>
+        <button onclick="lockApp()" title="Lock" style="background:rgba(212,169,106,0.1);border:1px solid rgba(212,169,106,0.2);border-radius:10px;padding:8px 12px;cursor:pointer;font-size:1rem;color:rgba(212,169,106,0.7);">🔒</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Layout -->
+  <main style="max-width:1280px;margin:0 auto;padding:20px 16px 100px;">
+    <div id="grid-layout" style="display:grid;gap:20px;grid-template-columns:1fr;">
+
+      <!-- LEFT / TOP: Summary Panel -->
+      <aside id="summary-panel">
+        
+        <!-- Balance Card -->
+        <div class="glass-card" style="padding:26px 24px;margin-bottom:16px;">
+          <p style="font-size:0.78rem;font-weight:600;color:rgba(212,169,106,0.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Total Balance</p>
+          <div id="balance-val" class="balance-main" style="color:#f5e6cc;">₹0.00</div>
+          
+          <!-- Remaining & Savings Chart -->
+          <div class="chart-container" style="height: 180px;">
+            <canvas id="balanceChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Income / Expense row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div class="glass-card" style="padding:18px 16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="width:32px;height:32px;border-radius:10px;background:rgba(52,168,83,0.18);display:flex;align-items:center;justify-content:center;font-size:1rem;">↑</div>
+              <span style="font-size:0.75rem;color:rgba(212,169,106,0.55);font-weight:600;text-transform:uppercase;">Income</span>
+            </div>
+            <div id="income-val" class="stat-val" style="color:#6fcf97;">₹0.00</div>
+          </div>
+          <div class="glass-card" style="padding:18px 16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="width:32px;height:32px;border-radius:10px;background:rgba(234,67,53,0.18);display:flex;align-items:center;justify-content:center;font-size:1rem;">↓</div>
+              <span style="font-size:0.75rem;color:rgba(212,169,106,0.55);font-weight:600;text-transform:uppercase;">Expenses</span>
+            </div>
+            <div id="expense-val" class="stat-val" style="color:#f08080;">₹0.00</div>
+          </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="glass-card" style="padding:18px 16px;">
+          <p style="font-size:0.78rem;font-weight:600;color:rgba(212,169,106,0.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">Expense Distribution</p>
+          <div class="chart-container">
+             <canvas id="categoryChart"></canvas>
+          </div>
+          <div id="cat-breakdown" style="display:flex;flex-direction:column;gap:10px;margin-top:20px;">
+            <!-- Category list will still appear below chart -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- RIGHT / BOTTOM: Transaction List -->
+      <section id="txn-panel">
+        <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none;">
+          <button class="chip active" data-filter="all" onclick="setFilter('all',this)">All</button>
+          <button class="chip" data-filter="credit" onclick="setFilter('credit',this)">Income</button>
+          <button class="chip" data-filter="expense" onclick="setFilter('expense',this)">Expenses</button>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <h2 style="font-size:1rem;font-weight:700;color:#f5e6cc;">Transactions</h2>
+          <span id="txn-count" style="font-size:0.78rem;color:rgba(212,169,106,0.45);">0 records</span>
+        </div>
+
+        <div id="txn-list-wrap">
+          <div id="txn-loader" style="display:flex;justify-content:center;padding:40px;"><div class="spinner"></div></div>
+          <div id="txn-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <div id="txn-empty" class="empty-state" style="display:none; text-align:center; padding: 40px;">
+            <p style="color:rgba(212,169,106,0.5);">No transactions found</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <button class="fab" id="fab-btn" onclick="openModal()" aria-label="Add Transaction">＋</button>
+</div>
+
+<!-- ═══════════════════════════ MODALS ═══════════════════════════ -->
+<div id="modal-overlay" class="modal-overlay" onclick="closeModalOnBg(event)">
+  <div class="modal-sheet glass-strong" id="modal-sheet">
+    <div style="width:40px;height:4px;border-radius:4px;background:rgba(212,169,106,0.25);margin:0 auto 24px;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
+      <h2 style="font-size:1.2rem;font-weight:800;color:#f5e6cc;" id="modal-title">Add Transaction</h2>
+      <button onclick="closeModal()" style="color:rgba(212,169,106,0.6);font-size:1.2rem;">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:18px;background:rgba(15,14,12,0.4);border-radius:12px;padding:4px;">
+      <button class="type-btn active-credit" id="btn-credit" onclick="setType('credit')">↑ Income</button>
+      <button class="type-btn" id="btn-expense" onclick="setType('expense')">↓ Expense</button>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:0.8rem;font-weight:600;color:rgba(212,169,106,0.6);display:block;margin-bottom:6px;">Amount *</label>
+      <input id="inp-amount" class="field" type="number" step="0.01" placeholder="0.00" />
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:0.8rem;font-weight:600;color:rgba(212,169,106,0.6);display:block;margin-bottom:6px;">Category *</label>
+      <select id="inp-category" class="field"></select>
+    </div>
+    <div style="margin-bottom:22px;">
+      <label style="font-size:0.8rem;font-weight:600;color:rgba(212,169,106,0.6);display:block;margin-bottom:6px;">Note</label>
+      <input id="inp-note" class="field" type="text" placeholder="Optional description…" />
+    </div>
+    <button id="submit-btn" onclick="submitTransaction()" style="width:100%;padding:14px;border-radius:14px;background:linear-gradient(135deg,#c4874a,#8a5228);color:#fff;font-weight:700;">Save Transaction</button>
+  </div>
+</div>
+
+<div id="detail-overlay" class="detail-overlay" onclick="closeDetailOnBg(event)">
+  <div class="detail-sheet glass-strong" id="detail-sheet">
+    <div style="width:40px;height:4px;border-radius:4px;background:rgba(212,169,106,0.25);margin:0 auto 20px;"></div>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<div id="toast" class="glass"></div>
+
+<script>
+  // ══════════════════════ SUPABASE & STATE ══════════════════════
+  const { createClient } = supabase;
+  const sb = createClient('https://tmjiwceydnizyadhqzxm.supabase.co', 'sb_publishable_A8dbu49TNB53uzbNTZ9JdQ_GTLqEdkI');
+
+  let allTxns = [];
+  let activeFilter = 'all';
+  let currentType = 'credit';
+  let editingId = null;
+  let isSubmitting = false;
+
+  // Chart instances
+  let balanceChart = null;
+  let categoryChart = null;
+
+  const CATEGORIES = {
+    credit:  ['Salary','Freelance','Investment','Gift','Bonus','Refund','Other Income'],
+    expense: ['Food & Dining','Housing','Transport','Shopping','Healthcare','Entertainment','Education','Utilities','Travel','Subscriptions','Other']
+  };
+  const CAT_ICONS = {
+    'Salary':'💼','Freelance':'🖥️','Investment':'📈','Gift':'🎁','Bonus':'🏆','Refund':'↩️','Other Income':'💰',
+    'Food & Dining':'🍔','Housing':'🏠','Transport':'🚗','Shopping':'🛍️','Healthcare':'💊','Entertainment':'🎬',
+    'Education':'📚','Utilities':'💡','Travel':'✈️','Subscriptions':'📱','Other':'📌'
+  };
+
+  // ══════════════════════ CHARTS LOGIC ══════════════════════
+  
+  function initCharts(income, expense, balance, categories) {
+    // Destroy existing charts to prevent overlap
+    if (balanceChart) balanceChart.destroy();
+    if (categoryChart) categoryChart.destroy();
+
+    const ctxBalance = document.getElementById('balanceChart').getContext('2d');
+    const ctxCategory = document.getElementById('categoryChart').getContext('2d');
+
+    // 1. Balance Overview Chart (Income vs Expense)
+    balanceChart = new Chart(ctxBalance, {
+      type: 'bar',
+      data: {
+        labels: ['Comparison'],
+        datasets: [
+          { label: 'Income', data: [income], backgroundColor: '#6fcf97', borderRadius: 8 },
+          { label: 'Expenses', data: [expense], backgroundColor: '#f08080', borderRadius: 8 }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false, grid: { display: false } },
+          y: { display: false, grid: { display: false } }
+        }
+      }
+    });
+
+    // 2. Expense Category Distribution
+    const catLabels = Object.keys(categories);
+    const catData = Object.values(categories);
+
+    categoryChart = new Chart(ctxCategory, {
+      type: 'doughnut',
+      data: {
+        labels: catLabels,
+        datasets: [{
+          data: catData,
+          backgroundColor: [
+            '#c4874a', '#a86b32', '#8a5228', '#6b3d1e', '#4d2b14', 
+            '#d4a96a', '#e8c99a', '#f5e6cc', '#33301f', '#272318'
+          ],
+          borderWidth: 0,
+          hoverOffset: 10
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#f5e6cc', font: { size: 10 }, usePointStyle: true }
+          }
+        }
+      }
+    });
+  }
+
+  // ══════════════════════ APP LOGIC ══════════════════════
+
+  async function fetchTransactions() {
+    document.getElementById('txn-loader').style.display = 'flex';
+    const { data, error } = await sb.from('transactions').select('*').order('created_at', { ascending: false });
+    document.getElementById('txn-loader').style.display = 'none';
+    if (error) { showToast('⚠️ Error loading data', 'error'); return; }
+    allTxns = data || [];
+    renderAll();
+  }
+
+  function renderAll() {
+    const credits  = allTxns.filter(t => t.type === 'credit').reduce((s, t) => s + Number(t.amount), 0);
+    const expenses = allTxns.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+    const balance  = credits - expenses;
+
+    // Update Text Elements
+    document.getElementById('balance-val').textContent = fmt(balance);
+    document.getElementById('income-val').textContent = fmt(credits);
+    document.getElementById('expense-val').textContent = fmt(expenses);
+    document.getElementById('balance-val').style.color = balance >= 0 ? '#f5e6cc' : '#f08080';
+
+    // Calculate Category Data
+    const catMap = {};
+    allTxns.filter(t => t.type === 'expense').forEach(t => {
+      catMap[t.category] = (catMap[t.category] || 0) + Number(t.amount);
+    });
+
+    // Update Charts
+    initCharts(credits, expenses, balance, catMap);
+    
+    // Render List
+    renderTxns();
+    renderBreakdown(catMap, expenses);
+  }
+
+  function renderTxns() {
+    const filtered = activeFilter === 'all' ? allTxns : allTxns.filter(t => t.type === activeFilter);
+    const list = document.getElementById('txn-list');
+    const empty = document.getElementById('txn-empty');
+    document.getElementById('txn-count').textContent = `${filtered.length} records`;
+
+    if (filtered.length === 0) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    list.innerHTML = filtered.map(t => {
+      const isCredit = t.type === 'credit';
+      const icon = CAT_ICONS[t.category] || '💰';
+      return `<div class="txn-item" onclick="openDetail('${t.id}')">
+        <div class="txn-icon" style="background:${isCredit ? 'rgba(52,168,83,0.1)' : 'rgba(234,67,53,0.1)'}">${icon}</div>
+        <div style="flex:1;">
+          <div style="font-size:0.9rem;font-weight:600;">${esc(t.category)}</div>
+          <div style="font-size:0.7rem;color:rgba(212,169,106,0.4)">${new Date(t.created_at).toLocaleDateString()}</div>
+        </div>
+        <div style="font-weight:700;color:${isCredit ? '#6fcf97' : '#f08080'}">${isCredit?'+':'-'}${fmt(t.amount)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderBreakdown(catMap, totalExp) {
+    const bd = document.getElementById('cat-breakdown');
+    const sorted = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
+    if (sorted.length === 0) { bd.innerHTML = ''; return; }
+
+    bd.innerHTML = sorted.slice(0, 4).map(([cat, amt]) => `
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:4px;">
+          <span>${CAT_ICONS[cat]} ${cat}</span>
+          <span>${fmt(amt)}</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill" style="width:${(amt/totalExp*100)}%; background:#c4874a;"></div></div>
+      </div>
+    `).join('');
+  }
+
+  // ══════════════════════ UTILS & UI ══════════════════════
+  
+  function fmt(n) { return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 }); }
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = type === 'error' ? '#ea4335' : '#34a853';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function setFilter(f, el) {
+    activeFilter = f;
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    renderTxns();
+  }
+
+  function populateCategories(type) {
+    const sel = document.getElementById('inp-category');
+    sel.innerHTML = CATEGORIES[type].map(c => `<option value="${c}">${CAT_ICONS[c]} ${c}</option>`).join('');
+  }
+
+  function setType(type) {
+    currentType = type;
+    document.getElementById('btn-credit').className = 'type-btn' + (type==='credit'?' active-credit':'');
+    document.getElementById('btn-expense').className = 'type-btn' + (type==='expense'?' active-expense':'');
+    populateCategories(type);
+  }
+
+  function openModal(id = null) {
+    editingId = id;
+    setType('credit');
+    document.getElementById('inp-amount').value = '';
+    document.getElementById('inp-note').value = '';
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+  function closeModalOnBg(e) { if(e.target.id === 'modal-overlay') closeModal(); }
+
+  async function submitTransaction() {
+    const amount = parseFloat(document.getElementById('inp-amount').value);
+    const category = document.getElementById('inp-category').value;
+    const note = document.getElementById('inp-note').value;
+    if (!amount) return showToast('Enter amount', 'error');
+
+    const payload = { amount, category, type: currentType, note };
+    const { error } = await sb.from('transactions').insert([payload]);
+    
+    if (error) showToast('Error saving', 'error');
+    else { showToast('Saved!'); closeModal(); fetchTransactions(); }
+  }
+
+  // PIN Lock Logic
+  let pinEntry = '';
+  function pinPress(n) {
+    if (pinEntry.length < 4) {
+      pinEntry += n;
+      document.getElementById('d' + (pinEntry.length-1)).classList.add('filled');
+      if (pinEntry.length === 4) {
+        if (pinEntry === (localStorage.getItem('bt_pin') || '1234')) unlockApp();
+        else {
+          document.getElementById('pin-dots').classList.add('shake');
+          setTimeout(pinReset, 500);
+        }
+      }
+    }
+  }
+  function pinReset() {
+    pinEntry = '';
+    document.querySelectorAll('.pin-dot').forEach(d => d.className = 'pin-dot');
+    document.getElementById('pin-dots').classList.remove('shake');
+  }
+  function pinBackspace() {
+    if (pinEntry.length > 0) {
+      document.getElementById('d' + (pinEntry.length-1)).classList.remove('filled');
+      pinEntry = pinEntry.slice(0, -1);
+    }
+  }
+
+  function unlockApp() {
+    document.getElementById('pin-overlay').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    fetchTransactions();
+  }
+
+  function lockApp() {
+    pinReset();
+    document.getElementById('pin-overlay').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+
+  // Detail view
+  function openDetail(id) {
+    const t = allTxns.find(x => x.id === id);
+    document.getElementById('detail-content').innerHTML = `
+      <div style="text-align:center;">
+        <div style="font-size:2rem;">${CAT_ICONS[t.category]}</div>
+        <div style="font-size:1.5rem; font-weight:800; color:${t.type === 'credit' ? '#6fcf97' : '#f08080'}">${fmt(t.amount)}</div>
+        <p style="margin:10px 0; color:rgba(212,169,106,0.6)">${t.note || 'No description'}</p>
+        <button onclick="deleteTxn('${t.id}')" style="color:#f08080; font-size:0.8rem; margin-top:20px;">Delete Transaction</button>
+      </div>
+    `;
+    document.getElementById('detail-overlay').classList.add('open');
+  }
+  
+  async function deleteTxn(id) {
+    if(!confirm('Delete this?')) return;
+    await sb.from('transactions').delete().eq('id', id);
+    document.getElementById('detail-overlay').classList.remove('open');
+    fetchTransactions();
+  }
+
+  function closeDetailOnBg(e) { if(e.target.id === 'detail-overlay') document.getElementById('detail-overlay').classList.remove('open'); }
+
+  // Init
+  if (!localStorage.getItem('bt_pin')) localStorage.setItem('bt_pin', '1234'); // Default PIN
+  
+  // Handle desktop view
+  window.addEventListener('resize', () => {
+    document.getElementById('desk-add-btn').style.display = window.innerWidth > 1024 ? 'block' : 'none';
+    document.getElementById('grid-layout').style.gridTemplateColumns = window.innerWidth > 1024 ? '360px 1fr' : '1fr';
+  });
+  window.dispatchEvent(new Event('resize'));
+
+</script>
+</body>
+</html>
